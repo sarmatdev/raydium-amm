@@ -687,8 +687,7 @@ pub struct AmmInfo {
     pub lp_amount: u64,
     /// client order id
     pub client_order_id: u64,
-    /// padding
-    pub padding2: [u64; 2],
+    // pub padding2: [u64; 2],
 }
 impl_loadable!(AmmInfo);
 
@@ -820,8 +819,8 @@ impl AmmInfo {
         self.min_price_multiplier = 1;
         self.max_price_multiplier = 1000000000;
         self.client_order_id = 0;
-        self.padding1 = Zeroable::zeroed();
-        self.padding2 = Zeroable::zeroed();
+        // self.padding1 = Zeroable::zeroed();
+        // self.padding2 = Zeroable::zeroed();
 
         Ok(())
     }
