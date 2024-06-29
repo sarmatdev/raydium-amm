@@ -680,14 +680,15 @@ pub struct AmmInfo {
     /// target_orders key
     pub target_orders: Pubkey,
     /// padding
-    pub padding1: [u64; 8],
+    pub withdraw_queue: Pubkey,
     /// amm owner key
+    pub lp_vault: Pubkey,
     pub amm_owner: Pubkey,
     /// pool lp amount
     pub lp_amount: u64,
     /// client order id
     pub client_order_id: u64,
-    // pub padding2: [u64; 2],
+    pub padding2: [u64; 2],
 }
 impl_loadable!(AmmInfo);
 
