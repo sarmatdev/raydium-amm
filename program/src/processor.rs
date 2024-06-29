@@ -382,15 +382,15 @@ impl Processor {
             let diff_x = U128::from(x1.checked_sub(x2).unwrap().as_u128());
             let diff_y = U128::from(y1.checked_sub(y2).unwrap().as_u128());
             delta_x = diff_x
-                .checked_mul(amm.fees.pnl_numerator.into())
+                .checked_mul(amm.pnl_numerator.into())
                 .unwrap()
-                .checked_div(amm.fees.pnl_denominator.into())
+                .checked_div(amm.pnl_denominator.into())
                 .unwrap()
                 .as_u128();
             delta_y = diff_y
-                .checked_mul(amm.fees.pnl_numerator.into())
+                .checked_mul(amm.pnl_numerator.into())
                 .unwrap()
-                .checked_div(amm.fees.pnl_denominator.into())
+                .checked_div(amm.pnl_denominator.into())
                 .unwrap()
                 .as_u128();
 
@@ -399,39 +399,30 @@ impl Processor {
             let diff_coin_pnl_amount =
                 Calculator::restore_decimal(diff_y, amm.coin_decimals, amm.sys_decimal_value);
             let pc_pnl_amount = diff_pc_pnl_amount
-                .checked_mul(amm.fees.pnl_numerator.into())
+                .checked_mul(amm.pnl_numerator.into())
                 .unwrap()
-                .checked_div(amm.fees.pnl_denominator.into())
+                .checked_div(amm.pnl_denominator.into())
                 .unwrap()
                 .as_u64();
             let coin_pnl_amount = diff_coin_pnl_amount
-                .checked_mul(amm.fees.pnl_numerator.into())
+                .checked_mul(amm.pnl_numerator.into())
                 .unwrap()
-                .checked_div(amm.fees.pnl_denominator.into())
+                .checked_div(amm.pnl_denominator.into())
                 .unwrap()
                 .as_u64();
             if pc_pnl_amount != 0 && coin_pnl_amount != 0 {
                 // step2: save total_pnl_pc & total_pnl_coin
-                amm.state_data.total_pnl_pc = amm
-                    .state_data
+                amm.total_pnl_pc = amm
                     .total_pnl_pc
                     .checked_add(diff_pc_pnl_amount.as_u64())
                     .unwrap();
-                amm.state_data.total_pnl_coin = amm
-                    .state_data
+                amm.total_pnl_coin = amm
                     .total_pnl_coin
                     .checked_add(diff_coin_pnl_amount.as_u64())
                     .unwrap();
-                amm.state_data.need_take_pnl_pc = amm
-                    .state_data
-                    .need_take_pnl_pc
-                    .checked_add(pc_pnl_amount)
-                    .unwrap();
-                amm.state_data.need_take_pnl_coin = amm
-                    .state_data
-                    .need_take_pnl_coin
-                    .checked_add(coin_pnl_amount)
-                    .unwrap();
+                amm.need_take_pnl_pc = amm.need_take_pnl_pc.checked_add(pc_pnl_amount).unwrap();
+                amm.need_take_pnl_coin =
+                    amm.need_take_pnl_coin.checked_add(coin_pnl_amount).unwrap();
 
                 // step3: update total_coin and total_pc without pnl
                 *total_pc_without_take_pnl = (*total_pc_without_take_pnl)
@@ -1691,8 +1682,8 @@ impl Processor {
         msg!(arrform!(
             LOG_SIZE,
             "withdrawpnl need_take_coin:{}, need_take_pc:{}",
-            amm.state_data.need_take_pnl_coin,
-            amm.state_data.need_take_pnl_pc
+            amm.need_take_pnl_coin,
+            amm.need_take_pnl_pc
         )
         .as_str());
 
@@ -1735,10 +1726,10 @@ impl Processor {
             x1.as_u128().into(),
             y1.as_u128().into(),
         )?;
-        msg!(arrform!(LOG_SIZE, "withdrawpnl total_pc:{}, total_pc:{}, delta_x:{}, delta_y:{}, need_take_coin:{}, need_take_pc:{}",total_pc_without_take_pnl, total_coin_without_take_pnl, delta_x, delta_y, amm.state_data.need_take_pnl_coin, amm.state_data.need_take_pnl_pc).as_str());
+        msg!(arrform!(LOG_SIZE, "withdrawpnl total_pc:{}, total_pc:{}, delta_x:{}, delta_y:{}, need_take_coin:{}, need_take_pc:{}",total_pc_without_take_pnl, total_coin_without_take_pnl, delta_x, delta_y, amm.need_take_pnl_coin, amm.need_take_pnl_pc).as_str());
 
-        if amm.state_data.need_take_pnl_coin <= amm_coin_vault.amount
-            && amm.state_data.need_take_pnl_pc <= amm_pc_vault.amount
+        if amm.need_take_pnl_coin <= amm_coin_vault.amount
+            && amm.need_take_pnl_pc <= amm_pc_vault.amount
         {
             // coin & pc is enough, transfer directly
             Invokers::token_transfer_with_authority(
@@ -1748,7 +1739,7 @@ impl Processor {
                 amm_authority_info.clone(),
                 AUTHORITY_AMM,
                 amm.nonce as u8,
-                amm.state_data.need_take_pnl_coin,
+                amm.need_take_pnl_coin,
             )?;
             Invokers::token_transfer_with_authority(
                 token_program_info.clone(),
@@ -1757,20 +1748,20 @@ impl Processor {
                 amm_authority_info.clone(),
                 AUTHORITY_AMM,
                 amm.nonce as u8,
-                amm.state_data.need_take_pnl_pc,
+                amm.need_take_pnl_pc,
             )?;
             // clear need take pnl
-            amm.state_data.need_take_pnl_coin = 0u64;
-            amm.state_data.need_take_pnl_pc = 0u64;
+            amm.need_take_pnl_coin = 0u64;
+            amm.need_take_pnl_pc = 0u64;
             // update target_orders.calc_pnl_x & target_orders.calc_pnl_y
             target_orders.calc_pnl_x = x1.checked_sub(U128::from(delta_x)).unwrap().as_u128();
             target_orders.calc_pnl_y = y1.checked_sub(U128::from(delta_y)).unwrap().as_u128();
-        } else if amm.state_data.need_take_pnl_coin
+        } else if amm.need_take_pnl_coin
             <= amm_coin_vault
                 .amount
                 .checked_add(open_orders.native_coin_free)
                 .unwrap()
-            && amm.state_data.need_take_pnl_pc
+            && amm.need_take_pnl_pc
                 <= amm_pc_vault
                     .amount
                     .checked_add(open_orders.native_pc_free)
@@ -1799,7 +1790,7 @@ impl Processor {
                 amm_authority_info.clone(),
                 AUTHORITY_AMM,
                 amm.nonce as u8,
-                amm.state_data.need_take_pnl_coin,
+                amm.need_take_pnl_coin,
             )?;
             Invokers::token_transfer_with_authority(
                 token_program_info.clone(),
@@ -1808,20 +1799,20 @@ impl Processor {
                 amm_authority_info.clone(),
                 AUTHORITY_AMM,
                 amm.nonce as u8,
-                amm.state_data.need_take_pnl_pc,
+                amm.need_take_pnl_pc,
             )?;
             // clear need take pnl
-            amm.state_data.need_take_pnl_coin = 0u64;
-            amm.state_data.need_take_pnl_pc = 0u64;
+            amm.need_take_pnl_coin = 0u64;
+            amm.need_take_pnl_pc = 0u64;
             // update target_orders.calc_pnl_x & target_orders.calc_pnl_y
             target_orders.calc_pnl_x = x1.checked_sub(U128::from(delta_x)).unwrap().as_u128();
             target_orders.calc_pnl_y = y1.checked_sub(U128::from(delta_y)).unwrap().as_u128();
-        } else if amm.state_data.need_take_pnl_coin
+        } else if amm.need_take_pnl_coin
             >= amm_coin_vault
                 .amount
                 .checked_add(open_orders.native_coin_total)
                 .unwrap()
-            || amm.state_data.need_take_pnl_pc
+            || amm.need_take_pnl_pc
                 >= amm_pc_vault
                     .amount
                     .checked_add(open_orders.native_pc_total)
@@ -2279,7 +2270,7 @@ impl Processor {
             msg!(&format!("swap_base_in: status {}", amm.status));
             let clock = Clock::get()?;
             if amm.status == AmmStatus::OrderBookOnly.into_u64()
-                && (clock.unix_timestamp as u64) >= amm.state_data.orderbook_to_init_time
+                && (clock.unix_timestamp as u64) >= amm.orderbook_to_init_time
             {
                 amm.status = AmmStatus::Initialized.into_u64();
                 msg!("swap_base_in: OrderBook to Initialized");
@@ -2288,7 +2279,7 @@ impl Processor {
             }
         } else if amm.status == AmmStatus::WaitingTrade.into_u64() {
             let clock = Clock::get()?;
-            if (clock.unix_timestamp as u64) < amm.state_data.pool_open_time {
+            if (clock.unix_timestamp as u64) < amm.pool_open_time {
                 return Err(AmmError::InvalidStatus.into());
             } else {
                 amm.status = AmmStatus::SwapOnly.into_u64();
@@ -2372,9 +2363,9 @@ impl Processor {
             return Err(AmmError::InsufficientFunds.into());
         }
         let swap_fee = U128::from(swap.amount_in)
-            .checked_mul(amm.fees.swap_fee_numerator.into())
+            .checked_mul(amm.swap_fee_numerator.into())
             .unwrap()
-            .checked_ceil_div(amm.fees.swap_fee_denominator.into())
+            .checked_ceil_div(amm.swap_fee_denominator.into())
             .unwrap()
             .0;
         let swap_in_after_deduct_fee = U128::from(swap.amount_in).checked_sub(swap_fee).unwrap();
@@ -2481,19 +2472,16 @@ impl Processor {
                     swap_amount_out,
                 )?;
                 // update state_data data
-                amm.state_data.swap_coin_in_amount = amm
-                    .state_data
+                amm.swap_coin_in_amount = amm
                     .swap_coin_in_amount
                     .checked_add(swap.amount_in.into())
                     .unwrap();
-                amm.state_data.swap_pc_out_amount = amm
-                    .state_data
+                amm.swap_pc_out_amount = amm
                     .swap_pc_out_amount
                     .checked_add(swap_amount_out.into())
                     .unwrap();
                 // charge coin as swap fee
-                amm.state_data.swap_acc_coin_fee = amm
-                    .state_data
+                amm.swap_acc_coin_fee = amm
                     .swap_acc_coin_fee
                     .checked_add(swap_fee.as_u64())
                     .unwrap();
@@ -2575,22 +2563,16 @@ impl Processor {
                     swap_amount_out,
                 )?;
                 // update state_data data
-                amm.state_data.swap_pc_in_amount = amm
-                    .state_data
+                amm.swap_pc_in_amount = amm
                     .swap_pc_in_amount
                     .checked_add(swap.amount_in.into())
                     .unwrap();
-                amm.state_data.swap_coin_out_amount = amm
-                    .state_data
+                amm.swap_coin_out_amount = amm
                     .swap_coin_out_amount
                     .checked_add(swap_amount_out.into())
                     .unwrap();
                 // charge pc as swap fee
-                amm.state_data.swap_acc_pc_fee = amm
-                    .state_data
-                    .swap_acc_pc_fee
-                    .checked_add(swap_fee.as_u64())
-                    .unwrap();
+                amm.swap_acc_pc_fee = amm.swap_acc_pc_fee.checked_add(swap_fee.as_u64()).unwrap();
             }
         };
 
@@ -2692,7 +2674,7 @@ impl Processor {
             msg!(&format!("swap_base_out: status {}", amm.status));
             let clock = Clock::get()?;
             if amm.status == AmmStatus::OrderBookOnly.into_u64()
-                && (clock.unix_timestamp as u64) >= amm.state_data.orderbook_to_init_time
+                && (clock.unix_timestamp as u64) >= amm.orderbook_to_init_time
             {
                 amm.status = AmmStatus::Initialized.into_u64();
                 msg!("swap_base_out: OrderBook to Initialized");
@@ -2701,7 +2683,7 @@ impl Processor {
             }
         } else if amm.status == AmmStatus::WaitingTrade.into_u64() {
             let clock = Clock::get()?;
-            if (clock.unix_timestamp as u64) < amm.state_data.pool_open_time {
+            if (clock.unix_timestamp as u64) < amm.pool_open_time {
                 return Err(AmmError::InvalidStatus.into());
             } else {
                 amm.status = AmmStatus::SwapOnly.into_u64();
@@ -2781,12 +2763,11 @@ impl Processor {
         // swap_in_after_add_fee * (1 - 0.0025) = swap_in_before_add_fee
         // swap_in_after_add_fee = swap_in_before_add_fee / (1 - 0.0025)
         let swap_in_after_add_fee = swap_in_before_add_fee
-            .checked_mul(amm.fees.swap_fee_denominator.into())
+            .checked_mul(amm.swap_fee_denominator.into())
             .unwrap()
             .checked_ceil_div(
-                (amm.fees
-                    .swap_fee_denominator
-                    .checked_sub(amm.fees.swap_fee_numerator)
+                (amm.swap_fee_denominator
+                    .checked_sub(amm.swap_fee_numerator)
                     .unwrap())
                 .into(),
             )
@@ -2894,22 +2875,16 @@ impl Processor {
                     swap.amount_out,
                 )?;
                 // update state_data data
-                amm.state_data.swap_coin_in_amount = amm
-                    .state_data
+                amm.swap_coin_in_amount = amm
                     .swap_coin_in_amount
                     .checked_add(swap_in_after_add_fee.into())
                     .unwrap();
-                amm.state_data.swap_pc_out_amount = amm
-                    .state_data
+                amm.swap_pc_out_amount = amm
                     .swap_pc_out_amount
                     .checked_add(Calculator::to_u128(swap.amount_out)?)
                     .unwrap();
                 // charge coin as swap fee
-                amm.state_data.swap_acc_coin_fee = amm
-                    .state_data
-                    .swap_acc_coin_fee
-                    .checked_add(swap_fee)
-                    .unwrap();
+                amm.swap_acc_coin_fee = amm.swap_acc_coin_fee.checked_add(swap_fee).unwrap();
             }
             SwapDirection::PC2Coin => {
                 if swap.amount_out >= total_coin_without_take_pnl {
@@ -2988,22 +2963,16 @@ impl Processor {
                     swap.amount_out,
                 )?;
                 // update state_data data
-                amm.state_data.swap_pc_in_amount = amm
-                    .state_data
+                amm.swap_pc_in_amount = amm
                     .swap_pc_in_amount
                     .checked_add(swap_in_after_add_fee.into())
                     .unwrap();
-                amm.state_data.swap_coin_out_amount = amm
-                    .state_data
+                amm.swap_coin_out_amount = amm
                     .swap_coin_out_amount
                     .checked_add(swap.amount_out.into())
                     .unwrap();
                 // charge pc as swap fee
-                amm.state_data.swap_acc_pc_fee = amm
-                    .state_data
-                    .swap_acc_pc_fee
-                    .checked_add(swap_fee)
-                    .unwrap();
+                amm.swap_acc_pc_fee = amm.swap_acc_pc_fee.checked_add(swap_fee).unwrap();
             }
         };
 
@@ -3234,7 +3203,7 @@ impl Processor {
         amm.market = *new_market_info.key;
         amm.open_orders = *new_amm_open_orders_info.key;
         let nonce = amm.nonce as u8;
-        let pool_open_time = amm.state_data.pool_open_time;
+        let pool_open_time = amm.pool_open_time;
         let coin_decimals = amm.coin_decimals as u8;
         let pc_decimals = amm.pc_decimals as u8;
         amm.initialize(
@@ -3473,7 +3442,7 @@ impl Processor {
             pnl_pc_amount,
             pnl_coin_amount,
             pool_lp_supply: amm.lp_amount,
-            pool_open_time: amm.state_data.pool_open_time,
+            pool_open_time: amm.pool_open_time,
             amm_id: amm_info.key.to_string(),
         };
         return Ok(pool_info_data);
@@ -3631,15 +3600,15 @@ impl Processor {
             swap_base_in.pool_data.pc_decimals = amm.pc_decimals;
             swap_base_in.pool_data.lp_decimals = lp_mint.decimals.into();
             swap_base_in.pool_data.pool_lp_supply = amm.lp_amount;
-            swap_base_in.pool_data.pool_open_time = amm.state_data.pool_open_time;
+            swap_base_in.pool_data.pool_open_time = amm.pool_open_time;
             swap_base_in.pool_data.pool_pc_amount = total_pc_without_take_pnl;
             swap_base_in.pool_data.pool_coin_amount = total_coin_without_take_pnl;
             swap_base_in.pool_data.amm_id = amm_info.key.to_string();
 
             let swap_fee = U128::from(swap.amount_in)
-                .checked_mul(amm.fees.swap_fee_numerator.into())
+                .checked_mul(amm.swap_fee_numerator.into())
                 .unwrap()
-                .checked_ceil_div(amm.fees.swap_fee_denominator.into())
+                .checked_ceil_div(amm.swap_fee_denominator.into())
                 .unwrap()
                 .0;
             let swap_in_after_deduct_fee =
@@ -3854,7 +3823,7 @@ impl Processor {
             swap_base_out.pool_data.pc_decimals = amm.pc_decimals;
             swap_base_out.pool_data.lp_decimals = lp_mint.decimals.into();
             swap_base_out.pool_data.pool_lp_supply = amm.lp_amount;
-            swap_base_out.pool_data.pool_open_time = amm.state_data.pool_open_time;
+            swap_base_out.pool_data.pool_open_time = amm.pool_open_time;
             swap_base_out.pool_data.pool_pc_amount = total_pc_without_take_pnl;
             swap_base_out.pool_data.pool_coin_amount = total_coin_without_take_pnl;
             swap_base_out.pool_data.amm_id = amm_info.key.to_string();
@@ -3869,12 +3838,11 @@ impl Processor {
             // swap_in_after_add_fee * (1 - 0.0025) = swap_in_before_add_fee
             // swap_in_after_add_fee = swap_in_before_add_fee / (1 - 0.0025)
             let swap_in_after_add_fee = swap_in_before_add_fee
-                .checked_mul(amm.fees.swap_fee_denominator.into())
+                .checked_mul(amm.swap_fee_denominator.into())
                 .unwrap()
                 .checked_ceil_div(
-                    (amm.fees
-                        .swap_fee_denominator
-                        .checked_sub(amm.fees.swap_fee_numerator)
+                    (amm.swap_fee_denominator
+                        .checked_sub(amm.swap_fee_numerator)
                         .unwrap())
                     .into(),
                 )
@@ -4032,7 +4000,7 @@ impl Processor {
                             Self::get_amm_orders(&open_orders, bids_orders, asks_orders)?;
                         let native_pc_total = open_orders.native_pc_total;
                         let native_coin_total = open_orders.native_coin_total;
-                        msg!(&format!("simulate_run_crank pc_amount:{}, native_pc_total:{}, coin_amount:{}, native_coin_total:{}, need_take_pnl_pc:{}, need_take_pnl_coin:{}", amm_pc_vault.amount, native_pc_total, amm_coin_vault.amount, native_coin_total, amm.state_data.need_take_pnl_pc, amm.state_data.need_take_pnl_coin));
+                        msg!(&format!("simulate_run_crank pc_amount:{}, native_pc_total:{}, coin_amount:{}, native_coin_total:{}, need_take_pnl_pc:{}, need_take_pnl_coin:{}", amm_pc_vault.amount, native_pc_total, amm_coin_vault.amount, native_coin_total, amm.need_take_pnl_pc, amm.need_take_pnl_coin));
                         let (total_pc_without_take_pnl, total_coin_without_take_pnl) =
                             Calculator::calc_total_without_take_pnl(
                                 amm_pc_vault.amount,
@@ -4404,23 +4372,23 @@ impl Processor {
                 //let max_bid: u64 = cur_price * (amm.sys_decimal_value - (amm.min_separate + amm.fee)) / amm.sys_decimal_value;
                 let max_bid: u64 = U128::from(cur_price)
                     .checked_mul(
-                        (amm.fees.trade_fee_denominator
-                            - (amm.fees.min_separate_numerator + amm.fees.trade_fee_numerator))
+                        (amm.trade_fee_denominator
+                            - (amm.min_separate_numerator + amm.trade_fee_numerator))
                             .into(),
                     )
                     .unwrap()
-                    .checked_div(amm.fees.trade_fee_denominator.into())
+                    .checked_div(amm.trade_fee_denominator.into())
                     .unwrap()
                     .as_u64();
                 //let min_ask: u64 = cur_price * (amm.sys_decimal_value + amm.min_separate + amm.fee) / amm.sys_decimal_value;
                 let min_ask: u64 = U128::from(cur_price)
                     .checked_mul(
-                        (amm.fees.trade_fee_denominator
-                            + (amm.fees.min_separate_numerator + amm.fees.trade_fee_numerator))
+                        (amm.trade_fee_denominator
+                            + (amm.min_separate_numerator + amm.trade_fee_numerator))
                             .into(),
                     )
                     .unwrap()
-                    .checked_ceil_div(amm.fees.trade_fee_denominator.into())
+                    .checked_ceil_div(amm.trade_fee_denominator.into())
                     .unwrap()
                     .0
                     .as_u64();
@@ -4714,12 +4682,12 @@ impl Processor {
         let mut pc_avaliable = pc_vault_amount
             .checked_add(open_orders.native_pc_free)
             .unwrap()
-            .checked_sub(amm.state_data.need_take_pnl_pc)
+            .checked_sub(amm.need_take_pnl_pc)
             .unwrap();
         let mut coin_avaliable = coin_vault_amount
             .checked_add(open_orders.native_coin_free)
             .unwrap()
-            .checked_sub(amm.state_data.need_take_pnl_coin)
+            .checked_sub(amm.need_take_pnl_coin)
             .unwrap();
         for i in place_orders_cur..place_orders_num {
             let payer = amm_pc_vault_info.clone();
@@ -4920,13 +4888,13 @@ impl Processor {
                     .amount
                     .checked_add(open_orders.native_pc_free)
                     .unwrap()
-                    .checked_sub(amm.state_data.need_take_pnl_pc)
+                    .checked_sub(amm.need_take_pnl_pc)
                     .unwrap();
                 coin_avaliable = coin_vault
                     .amount
                     .checked_add(open_orders.native_coin_free)
                     .unwrap()
-                    .checked_sub(amm.state_data.need_take_pnl_coin)
+                    .checked_sub(amm.need_take_pnl_coin)
                     .unwrap();
             }
         }
@@ -5304,17 +5272,17 @@ impl Processor {
                     None => return Err(AmmError::InvalidInput.into()),
                 };
                 if value <= TEN_THOUSAND {
-                    amm.fees.min_separate_numerator = value;
+                    amm.min_separate_numerator = value;
                     set_valid = true;
                 }
             }
             AmmParams::Fees => {
-                let fees = match setparams.fees {
-                    Some(a) => a,
-                    None => return Err(AmmError::InvalidInput.into()),
-                };
-                fees.validate()?;
-                amm.fees = fees;
+                // let fees = match setparams {
+                //     Some(a) => a,
+                //     None => return Err(AmmError::InvalidInput.into()),
+                // };
+                // fees.validate()?;
+                // amm = fees;
                 set_valid = true;
             }
             AmmParams::AmmOwner => {
@@ -5330,7 +5298,7 @@ impl Processor {
                     Some(a) => a,
                     None => return Err(AmmError::InvalidInput.into()),
                 };
-                amm.state_data.pool_open_time = value as u64;
+                amm.pool_open_time = value as u64;
                 set_valid = true;
             }
             AmmParams::LastOrderDistance => {
@@ -5353,16 +5321,16 @@ impl Processor {
                 set_valid = true;
             }
             AmmParams::SetSwitchTime => {
-                let value = match setparams.value {
-                    Some(a) => a,
-                    None => return Err(AmmError::InvalidInput.into()),
-                };
-                amm.state_data.orderbook_to_init_time = value as u64;
-                set_valid = true;
+                // let value = match setparams.value {
+                //     Some(a) => a,
+                //     None => return Err(AmmError::InvalidInput.into()),
+                // };
+                // amm.orderbook_to_init_time = value as u64;
+                // set_valid = true;
             }
             AmmParams::ClearOpenTime => {
-                amm.state_data.pool_open_time = 0;
-                amm.state_data.orderbook_to_init_time = 0;
+                amm.pool_open_time = 0;
+                amm.orderbook_to_init_time = 0;
                 set_valid = true;
             }
             AmmParams::UpdateOpenOrder => {
@@ -6672,9 +6640,9 @@ mod test {
         amm.initialize(0, 0, 2, 9, 1000000, 1).unwrap();
 
         let swap_fee = U128::from(amount_in)
-            .checked_mul(amm.fees.swap_fee_numerator.into())
+            .checked_mul(amm.swap_fee_numerator.into())
             .unwrap()
-            .checked_ceil_div(amm.fees.swap_fee_denominator.into())
+            .checked_ceil_div(amm.swap_fee_denominator.into())
             .unwrap()
             .0;
 

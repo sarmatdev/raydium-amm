@@ -310,12 +310,12 @@ impl Calculator {
         let total_pc_without_take_pnl = pc_amount
             .checked_add(pc_total_in_serum)
             .ok_or(AmmError::CheckedAddOverflow)?
-            .checked_sub(amm.state_data.need_take_pnl_pc)
+            .checked_sub(amm.need_take_pnl_pc)
             .ok_or(AmmError::CheckedSubOverflow)?;
         let total_coin_without_take_pnl = coin_amount
             .checked_add(coin_total_in_serum)
             .ok_or(AmmError::CheckedAddOverflow)?
-            .checked_sub(amm.state_data.need_take_pnl_coin)
+            .checked_sub(amm.need_take_pnl_coin)
             .ok_or(AmmError::CheckedSubOverflow)?;
         Ok((total_pc_without_take_pnl, total_coin_without_take_pnl))
     }
@@ -326,10 +326,10 @@ impl Calculator {
         amm: &'a AmmInfo,
     ) -> Result<(u64, u64), AmmError> {
         let total_pc_without_take_pnl = pc_amount
-            .checked_sub(amm.state_data.need_take_pnl_pc)
+            .checked_sub(amm.need_take_pnl_pc)
             .ok_or(AmmError::CheckedSubOverflow)?;
         let total_coin_without_take_pnl = coin_amount
-            .checked_sub(amm.state_data.need_take_pnl_coin)
+            .checked_sub(amm.need_take_pnl_coin)
             .ok_or(AmmError::CheckedSubOverflow)?;
         Ok((total_pc_without_take_pnl, total_coin_without_take_pnl))
     }
@@ -338,10 +338,10 @@ impl Calculator {
         // max_size = x / (1.0025 * price) - y
         let price_with_fee = U128::from(price)
             .checked_mul(U128::from(
-                amm.fees.trade_fee_denominator + amm.fees.trade_fee_numerator,
+                amm.trade_fee_denominator + amm.trade_fee_numerator,
             ))
             .unwrap()
-            .checked_div(U128::from(amm.fees.trade_fee_denominator))
+            .checked_div(U128::from(amm.trade_fee_denominator))
             .unwrap();
         let mut max_size = U128::from(x)
             .checked_mul(amm.sys_decimal_value.into())
@@ -355,10 +355,10 @@ impl Calculator {
     pub fn get_max_sell_size_at_price(price: u64, x: u128, y: u128, amm: &AmmInfo) -> u64 {
         // let max_size = y - x / (p / 1.0025)
         let price_with_fee = U128::from(price)
-            .checked_mul(amm.fees.trade_fee_denominator.into())
+            .checked_mul(amm.trade_fee_denominator.into())
             .unwrap()
             .checked_div(U128::from(
-                amm.fees.trade_fee_denominator + amm.fees.trade_fee_numerator,
+                amm.trade_fee_denominator + amm.trade_fee_numerator,
             ))
             .unwrap();
         let second_part = U128::from(x)

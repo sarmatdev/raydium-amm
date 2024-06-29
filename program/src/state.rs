@@ -658,9 +658,55 @@ pub struct AmmInfo {
     /// system decimal value, used to normalize the value of coin and pc amount
     pub sys_decimal_value: u64,
     /// All fee information
-    pub fees: Fees,
+    /// numerator of the min_separate
+    pub min_separate_numerator: u64,
+    /// denominator of the min_separate
+    pub min_separate_denominator: u64,
+
+    /// numerator of the fee
+    pub trade_fee_numerator: u64,
+    /// denominator of the fee
+    /// and 'trade_fee_denominator' must be equal to 'min_separate_denominator'
+    pub trade_fee_denominator: u64,
+
+    /// numerator of the pnl
+    pub pnl_numerator: u64,
+    /// denominator of the pnl
+    pub pnl_denominator: u64,
+
+    /// numerator of the swap_fee
+    pub swap_fee_numerator: u64,
+    /// denominator of the swap_fee
+    pub swap_fee_denominator: u64,
     /// Statistical data
-    pub state_data: StateData,
+    /// delay to take pnl coin
+    pub need_take_pnl_coin: u64,
+    /// delay to take pnl pc
+    pub need_take_pnl_pc: u64,
+    /// total pnl pc
+    pub total_pnl_pc: u64,
+    /// total pnl coin
+    pub total_pnl_coin: u64,
+    /// ido pool open time
+    pub pool_open_time: u64,
+    /// padding for future updates
+    pub padding: [u64; 2],
+    /// switch from orderbookonly to init
+    pub orderbook_to_init_time: u64,
+
+    /// swap coin in amount
+    pub swap_coin_in_amount: u128,
+    /// swap pc out amount
+    pub swap_pc_out_amount: u128,
+    /// charge pc as swap fee while swap pc to coin
+    pub swap_acc_pc_fee: u64,
+
+    /// swap pc in amount
+    pub swap_pc_in_amount: u128,
+    /// swap coin out amount
+    pub swap_coin_out_amount: u128,
+    /// charge coin as swap fee while swap coin to pc
+    pub swap_acc_coin_fee: u64,
     /// Coin vault
     pub coin_vault: Pubkey,
     /// Pc vault
@@ -741,8 +787,8 @@ impl AmmInfo {
         coin_lot_size: u64,
         pc_lot_size: u64,
     ) -> Result<(), AmmError> {
-        self.fees.initialize()?;
-        self.state_data.initialize(open_time)?;
+        // self.initialize()?;
+        // self.state_data.initialize(open_time)?;
 
         self.status = AmmStatus::Uninitialized.into_u64();
         self.nonce = nonce as u64;
