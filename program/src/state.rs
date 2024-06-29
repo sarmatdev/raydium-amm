@@ -689,8 +689,8 @@ pub struct AmmInfo {
     pub total_pnl_coin: u64,
     /// ido pool open time
     pub pool_open_time: u64,
-    /// padding for future updates
-    pub padding: [u64; 2],
+    pub puhish_pc_amount: u64,
+    pub puhish_coin_amount: u64,
     /// switch from orderbookonly to init
     pub orderbook_to_init_time: u64,
 
@@ -733,8 +733,7 @@ pub struct AmmInfo {
     /// pool lp amount
     pub lp_amount: u64,
     /// client order id
-    pub client_order_id: u64,
-    pub padding2: [u64; 2],
+    pub padding2: [u64; 3],
 }
 impl_loadable!(AmmInfo);
 
@@ -865,7 +864,7 @@ impl AmmInfo {
         );
         self.min_price_multiplier = 1;
         self.max_price_multiplier = 1000000000;
-        self.client_order_id = 0;
+        // self.client_order_id = 0;
         // self.padding1 = Zeroable::zeroed();
         // self.padding2 = Zeroable::zeroed();
 
@@ -873,11 +872,12 @@ impl AmmInfo {
     }
 
     pub fn incr_client_order_id(&mut self) -> u64 {
-        self.client_order_id = self.client_order_id.wrapping_add(1);
-        if self.client_order_id == 0 {
-            self.client_order_id += 1;
-        }
-        self.client_order_id
+        // self.client_order_id = self.client_order_id.wrapping_add(1);
+        // if self.client_order_id == 0 {
+        //     self.client_order_id += 1;
+        // }
+        // self.client_order_id
+        0
     }
 }
 
